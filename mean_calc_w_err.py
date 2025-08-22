@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def err_weighted_mean(file_path, value_col=0, error_col=1, result_length=4):
     """
     Berechnet den gewichteten Mittelwert und den zugehörigen Fehler eines Wertearrays unter Berücksichtigung individueller Fehlerwerte.
@@ -28,7 +29,7 @@ def err_weighted_mean(file_path, value_col=0, error_col=1, result_length=4):
     # Rundung auf result_length Nachkommastellen
     mean_round = round(float(mean), result_length)
     err_mean_round = round(float(err_mean), result_length)
-    
+
     return mean_round, err_mean_round
 
 
@@ -47,13 +48,20 @@ def mean_calc(z_input, err_input, goal='data weighting'):
     Rückgabewert:
     - mean_val (float): Der berechnete gewichtete Mittelwert oder der Fehler des Mittelwerts.
     """
-    mean_1 = mean_2 = i = 0
-    while i < len(z_input):
-        mean_1 += (z_input[i] / err_input[i] ** 2)
-        mean_2 += (1 / (err_input[i] ** 2))
-        i += 1
+    # Use vectorized numpy operations for performance and numerical stability
+    z = np.asarray(z_input, dtype=float)
+    err = np.asarray(err_input, dtype=float)
+
+    if np.any(err == 0):
+        # avoid division by zero; treat zero-errors as very large weight (effectively ignore)
+        # Here we treat zero error as very small uncertainty -> very large weight; user data should avoid exact zero.
+        err = np.where(err == 0, np.finfo(float).tiny, err)
+
+    weights = (1.0 / err) ** 2
+
     if goal == 'data weighting':
-        mean_val = mean_1 / mean_2
+        return np.sum(z * weights) / np.sum(weights)
     elif goal == 'error':
-        mean_val = np.sqrt(1 / float(mean_2))
-    return mean_val
+        return np.sqrt(1.0 / np.sum(weights))
+    else:
+        raise ValueError("Ungültiges Ziel für mean_calc. Nutze 'data weighting' oder 'error'.")

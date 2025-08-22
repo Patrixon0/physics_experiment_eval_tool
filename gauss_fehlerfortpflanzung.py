@@ -3,11 +3,8 @@ import numpy as np
 import os
 import csv
 import pandas as pd
-import sys
-# Add the correct path to the P2 folder
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '..', '..')))
 
-from scientific_error_rounder import runden_und_speichern
+from physics_experiment_eval_tool.scientific_error_rounder import round_measurements
 
 def gaussian_error_propagation(formula, variables, result_lenght=4, output=True, for_file=False):
     """
@@ -30,25 +27,32 @@ def gaussian_error_propagation(formula, variables, result_lenght=4, output=True,
     - Bei `output=False` und `for_file=False`: Gibt das Ergebnis und den Fehler als Tuple (Wert, Fehler) zurück.
     """
 
-    round_measurements=runden_und_speichern('fake_path', get_function=True)
+    # get rounding helper
+    # round_measurements has signature (values, errors) -> rounded_values, rounded_errors, dp_vals, dp_errs
+    # leave get_function compatibility: we just reference the function
+    # (older code expects a callable with that name)
+    # NOTE: this avoids modifying sys.path at runtime
+    # round_measurements already imported above
 
     # create lists of variable names for later usage
     names = [var[0] for var in variables]
     err_names = [sp.symbols(f'del_{var[0]}') for var in variables]
-    diff_functions, error_sums_n, error_sums_v =np.empty(0), np.empty(0), np.empty(0)
+    # Use Python lists for accumulation (faster and clearer than repeated np.append)
+    diff_functions = []
+    error_sums_n = []
+    error_sums_v = []
     val_dict={var[0]: var[1] for var in variables}
     
     # calculate formula value
     formula_value = formula.subs(val_dict).evalf()
     
     # differentiate function by each variable and make the sums both as strings as well as value
-    i=0
-    while i<len(names):
-        diff_functions=np.append(diff_functions,sp.diff(formula, names[i]))
-        if variables[i][2]!=0:
-            error_sums_n=np.append(error_sums_n,diff_functions[i]*err_names[i])
-        error_sums_v=np.append(error_sums_v,(diff_functions[i]*variables[i][2])**2)
-        i+=1
+    for i, name in enumerate(names):
+        d = sp.diff(formula, name)
+        diff_functions.append(d)
+        if variables[i][2] != 0:
+            error_sums_n.append(d * err_names[i])
+        error_sums_v.append((d * variables[i][2]) ** 2)
     
     # create final formula as a string
     sum_str = [f'({str(sum_n)})**2' for sum_n in error_sums_n]
@@ -56,7 +60,7 @@ def gaussian_error_propagation(formula, variables, result_lenght=4, output=True,
     error_formula=f'sqrt({result_str})'
     
     # calculate error value
-    error_result=sp.sqrt(sum([expr.subs(val_dict).evalf() for expr in error_sums_v]))
+    error_result = sp.sqrt(sum([expr.subs(val_dict).evalf() for expr in error_sums_v]))
     
     if for_file:
         return(error_formula)

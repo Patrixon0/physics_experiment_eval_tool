@@ -3,7 +3,6 @@ import sympy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter, ScalarFormatter, FuncFormatter
-import pandas as pd
 from decimal import Decimal, ROUND_HALF_UP, getcontext
 
 def round_measurement(value, error):
