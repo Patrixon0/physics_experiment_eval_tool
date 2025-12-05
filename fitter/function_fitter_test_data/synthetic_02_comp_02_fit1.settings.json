@@ -1,0 +1,97 @@
+{
+  "function_expr": "a0*np.exp(-0.5*((x-mu0)/sigma0)**2) + a1*np.exp(-0.5*((x-mu1)/sigma1)**2)",
+  "param_names": [
+    "a0",
+    "mu0",
+    "sigma0",
+    "a1",
+    "mu1",
+    "sigma1"
+  ],
+  "x_label": "x",
+  "y_label": "y",
+  "param_defaults": {},
+  "x_range": null,
+  "global_range_min": -10.0,
+  "global_range_max": 10.0,
+  "global_param_ranges": {},
+  "components": [
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "a0*np.exp(-0.5*((x-mu0)/sigma0)**2)",
+      "param_names": [
+        "a0",
+        "mu0",
+        "sigma0"
+      ],
+      "params": {
+        "a0": 1.6973425463720309,
+        "mu0": 8.106918796205973,
+        "sigma0": 1.2434895917234565
+      },
+      "ranges": {
+        "a0": [
+          -1.6973425463720309,
+          5.092027639116092
+        ],
+        "mu0": [
+          -8.106918796205973,
+          24.320756388617916
+        ],
+        "sigma0": [
+          -1.2434895917234565,
+          3.73046877517037
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "a0": 1.6973425463720309,
+        "mu0": 8.106918796205973,
+        "sigma0": 1.2434895917234565
+      },
+      "label": "gaussian",
+      "color": null
+    },
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "a1*np.exp(-0.5*((x-mu1)/sigma1)**2)",
+      "param_names": [
+        "a1",
+        "mu1",
+        "sigma1"
+      ],
+      "params": {
+        "a1": 1.706445182706524,
+        "mu1": 3.6982330415269438,
+        "sigma1": 0.8797813625352191
+      },
+      "ranges": {
+        "a1": [
+          -1.706445182706524,
+          5.1193355481195715
+        ],
+        "mu1": [
+          -3.6982330415269438,
+          11.094699124580831
+        ],
+        "sigma1": [
+          -0.8797813625352191,
+          2.6393440876056573
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "a1": 1.706445182706524,
+        "mu1": 3.6982330415269438,
+        "sigma1": 0.8797813625352191
+      },
+      "label": "gaussian",
+      "color": null
+    }
+  ],
+  "has_error_columns": false,
+  "y_errors_in_column": "y_err",
+  "settings_slot": "fit1"
+}

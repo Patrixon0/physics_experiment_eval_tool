@@ -1,0 +1,19 @@
+{
+  "components": [
+    {
+      "kind": "gaussian",
+      "params": {
+        "amp": 0.6220725158292879,
+        "mu": 3.2411541754452653,
+        "sigma": 1.7386019172437797
+      }
+    }
+  ],
+  "expression": "a0*np.exp(-0.5*((x-mu0)/sigma0)**2)",
+  "true_params": {
+    "a0": 0.6220725158292879,
+    "mu0": 3.2411541754452653,
+    "sigma0": 1.7386019172437797
+  },
+  "csv": "fitter/function_fitter_test_data/synthetic_01_comp_00.csv"
+}

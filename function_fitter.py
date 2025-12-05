@@ -4,6 +4,7 @@ import argparse
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from typing import Any
 
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import (
@@ -37,20 +38,29 @@ class GaussianFitUI(QWidget):
         self.input_path = input_path
         self.components = []
 
-        self.function_expr = DEFAULT_FUNCTION_EXPR
+        self.function_expr = DEFAULT_FUNCTION_EXPR  # default expression for new components
         self.param_names = self.extract_parameter_names(self.function_expr)
         self.safe_namespace = self.build_safe_namespace()
         self.formula_item = None
         self.param_default_settings = {}
         self.default_controls = {}
         self.x_range_settings = {}
-        self.y_range_settings = {}
         self.show_sum_curves = True
         self.show_sum_pos = True
         self.show_sum_neg = True
         self.show_total_curve = True
+        self.show_target_curve = True
         self.settings_slot = "fit1"
         self.range_dirty = True
+        self.next_comp_id = 0
+        self.global_range_min = -10.0
+        self.global_range_max = 10.0
+        self.target_x = None
+        self.target_y = None
+        self.target_err = None
+        self.target_curve_item = None
+        self.global_param_ranges = {}
+        self.verbose_debug = False
 
         self.x_label = "Energie [keV]"
         self.y_label = "Intensität [1]"
@@ -58,7 +68,6 @@ class GaussianFitUI(QWidget):
         # High-resolution X grid for smooth curves
         self.reset_param_defaults()
         self.reset_x_range_defaults()
-        self.reset_y_range_defaults()
         self.range_dirty = True
         N_high = max(2000, len(self.x_data) * 5)
         self.x_hr = np.linspace(self.x_range_min(), self.x_range_max(), N_high)
@@ -117,7 +126,9 @@ class GaussianFitUI(QWidget):
         Visitor().visit(tree)
         return names
 
-    def guess_param_defaults(self):
+    def guess_param_defaults(self, expr=None, names=None):
+        expr = expr or self.function_expr
+        names = names or self.extract_parameter_names(expr)
         param_values = {}
         param_ranges = {}
         param_exponents = {}
@@ -128,11 +139,11 @@ class GaussianFitUI(QWidget):
         y_min, y_max = float(self.y_data.min()), float(self.y_data.max())
         y_span = max(y_max - y_min, 1.0)
 
-        for name in self.param_names:
+        for name in names:
             lower = name.lower()
             if lower in ("amp", "a", "amplitude"):
-                val = y_max
-                lo, hi = -2 * y_span, 2 * y_span
+                val = max(y_max, 0.0)
+                lo, hi = 0.0, 2 * max(y_span, abs(y_max))
             elif lower in ("offset", "b", "c") or "offset" in lower:
                 val = float(np.median(self.y_data))
                 lo, hi = -2 * y_span, 2 * y_span
@@ -154,8 +165,8 @@ class GaussianFitUI(QWidget):
 
         return param_values, param_ranges, param_exponents
 
-    def default_param_state(self):
-        values, ranges, exponents = self.guess_param_defaults()
+    def default_param_state(self, expr=None, names=None):
+        values, ranges, exponents = self.guess_param_defaults(expr=expr, names=names)
         return values, ranges, exponents
 
     def reset_param_defaults(self):
@@ -168,12 +179,13 @@ class GaussianFitUI(QWidget):
             mantissa = values[name] / (10 ** chosen_exp) if values[name] != 0 else 0.0
             self.param_default_settings[name] = {"mantissa": mantissa, "exp": chosen_exp}
 
-    def ensure_default_settings(self):
+    def ensure_default_settings(self, names=None):
+        names = names or self.param_names
         if not self.param_default_settings:
             self.reset_param_defaults()
             return
-        values, _, exps = self.default_param_state()
-        for name in self.param_names:
+        values, _, exps = self.default_param_state(names=names)
+        for name in names:
             if name not in self.param_default_settings:
                 exp = exps.get(name, 0)
                 mantissa = values[name] / (10 ** exp) if values[name] != 0 else 0.0
@@ -197,21 +209,8 @@ class GaussianFitUI(QWidget):
         self.range_dirty = True
 
     def reset_y_range_defaults(self):
-        y_min_raw = float(self.y_data.min())
-        y_max_raw = float(self.y_data.max())
-        span = y_max_raw - y_min_raw
-        pad = 0.05 * span if span != 0 else 0.05 * max(abs(y_min_raw), abs(y_max_raw), 1.0)
-        y_min = y_min_raw - pad
-        y_max = y_max_raw + pad
-        m_min, e_min = self.split_mantissa_exponent(y_min if y_min != 0 else 1.0)
-        m_max, e_max = self.split_mantissa_exponent(y_max if y_max != 0 else 1.0)
-        self.y_range_settings = {
-            "min_m": m_min if y_min != 0 else 1.0,
-            "min_exp": e_min if y_min != 0 else 0,
-            "max_m": m_max if y_max != 0 else 1.0,
-            "max_exp": e_max if y_max != 0 else 0,
-        }
-        self.range_dirty = True
+        # Deprecated: y-range is auto-managed by viewbox
+        pass
 
     def x_range_min(self):
         return self.combine_mantissa_exponent(self.x_range_settings["min_m"], self.x_range_settings["min_exp"])
@@ -219,27 +218,23 @@ class GaussianFitUI(QWidget):
     def x_range_max(self):
         return self.combine_mantissa_exponent(self.x_range_settings["max_m"], self.x_range_settings["max_exp"])
 
-    def y_range_min(self):
-        return self.combine_mantissa_exponent(self.y_range_settings["min_m"], self.y_range_settings["min_exp"])
-
-    def y_range_max(self):
-        return self.combine_mantissa_exponent(self.y_range_settings["max_m"], self.y_range_settings["max_exp"])
-
     def add_positive_component(self):
         self._add_component("pos")
 
     def add_negative_component(self):
         self._add_component("neg")
 
-    def _add_component(self, comp_type, param_values=None, ranges=None, exponents=None, mantissas=None, visible=True, update=True, color=None):
-        defaults, default_ranges, default_exponents = self.default_param_state()
-        self.ensure_default_settings()
+    def _add_component(self, comp_type, param_values=None, ranges=None, exponents=None, mantissas=None, visible=True, update=True, color=None, expr=None):
+        comp_expr = expr or self.function_expr
+        param_names = self.extract_parameter_names(comp_expr)
+        defaults, default_ranges, default_exponents = self.default_param_state(expr=comp_expr, names=param_names)
+        self.ensure_default_settings(names=param_names)
 
         params = {}
         param_ranges = {}
         param_exponents = {}
         param_mantissas = {}
-        for name in self.param_names:
+        for name in param_names:
             use_val = (param_values or {}).get(name, defaults[name])
             use_exp = (exponents or {}).get(name)
             if use_exp is None:
@@ -254,7 +249,12 @@ class GaussianFitUI(QWidget):
             params[name] = float(self.combine_mantissa_exponent(use_mantissa, use_exp))
             base_range = (ranges or {}).get(name)
             if base_range is None:
-                base_range = (-10.0, 10.0)
+                if name in self.global_param_ranges:
+                    base_range = self.global_param_ranges[name]
+                elif self.global_range_min is not None and self.global_range_max is not None:
+                    base_range = (self.global_range_min, self.global_range_max)
+                else:
+                    base_range = (-10.0, 10.0)
             param_ranges[name] = (float(base_range[0]), float(base_range[1]))
             param_exponents[name] = int(use_exp)
             param_mantissas[name] = float(use_mantissa)
@@ -271,11 +271,14 @@ class GaussianFitUI(QWidget):
             color = "#c000c0" if comp_type == "pos" else "#555555"
 
         comp = {
+            "id": self.next_comp_id,
             "type": comp_type,
             "params": params,
             "ranges": param_ranges,
             "exponents": param_exponents,
             "mantissas": param_mantissas,
+            "param_names": param_names,
+            "expr": comp_expr,
             "label": label,
             "color": color,
             "visible": visible,
@@ -283,6 +286,7 @@ class GaussianFitUI(QWidget):
             "widgets": {}
         }
         self.components.append(comp)
+        self.next_comp_id += 1
         self._create_component_controls(comp)
         if update:
             self.update_curves()
@@ -380,16 +384,21 @@ class GaussianFitUI(QWidget):
         )
         self.plot_widget.addItem(baseline)
 
+        self.target_curve_item = self.plot(self.x_hr, np.zeros_like(self.x_hr),
+                                           pen=pg.mkPen(color=(0, 150, 0, 150), width=2, style=Qt.PenStyle.DotLine),
+                                           name="Target")
+        self.target_curve_item.setVisible(self.show_target_curve)
+
         self.update_formula_legend()
+        self.rebuild_target_curve()
 
-        # ----------- controls (separate window) -----------
-        control_container = QWidget()
-        control_layout = QVBoxLayout(control_container)
-        control_layout.setContentsMargins(5, 5, 5, 5)
-        control_layout.setSpacing(5)
+        # ----------- settings window -----------
+        settings_container = QWidget()
+        settings_layout = QVBoxLayout(settings_container)
+        settings_layout.setContentsMargins(8, 8, 8, 8)
+        settings_layout.setSpacing(8)
 
-        # Function editor
-        func_box = QGroupBox("Function f(x)")
+        func_box = QGroupBox("Default function for new components f(x)")
         func_layout = QVBoxLayout(func_box)
         func_layout.setContentsMargins(6, 6, 6, 6)
         func_hint = QLabel("Use variable x and numpy (np) functions. Parameters become sliders.")
@@ -400,9 +409,8 @@ class GaussianFitUI(QWidget):
         func_layout.addWidget(func_hint)
         func_layout.addWidget(self.function_edit)
         func_layout.addWidget(self.btn_apply_function)
-        control_layout.addWidget(func_box)
+        settings_layout.addWidget(func_box)
 
-        # Axes labels
         axes_box = QGroupBox("Axes labels")
         axes_layout = QVBoxLayout(axes_box)
         x_row = QHBoxLayout()
@@ -416,17 +424,15 @@ class GaussianFitUI(QWidget):
         self.y_label_edit = QLineEdit(self.y_label)
         y_row.addWidget(self.y_label_edit)
         axes_layout.addLayout(y_row)
-        control_layout.addWidget(axes_box)
+        settings_layout.addWidget(axes_box)
 
-        # Defaults for new components (mantissa * 10^exp)
         self.defaults_box = QGroupBox("Defaults for new components")
         self.defaults_layout = QVBoxLayout(self.defaults_box)
         self.defaults_layout.setContentsMargins(6, 6, 6, 6)
         self.defaults_layout.setSpacing(4)
         self.build_default_controls()
-        control_layout.addWidget(self.defaults_box)
+        settings_layout.addWidget(self.defaults_box)
 
-        # Settings slot
         slot_row = QHBoxLayout()
         slot_row.addWidget(QLabel("Settings slot:"))
         self.settings_slot_edit = QLineEdit(self.settings_slot)
@@ -435,34 +441,41 @@ class GaussianFitUI(QWidget):
         self.settings_slot_edit.setToolTip("Choose a slot name. Save/Load will use <csv_stem>_<slot>.settings.json")
         slot_row.addWidget(self.settings_slot_edit)
         slot_row.addStretch()
-        control_layout.addLayout(slot_row)
+        settings_layout.addLayout(slot_row)
 
         slot_hint = QLabel("Save/Load uses: <csv name>_<slot>.settings.json")
         slot_hint.setStyleSheet("color: #f0f0f0;")
-        control_layout.addWidget(slot_hint)
+        settings_layout.addWidget(slot_hint)
 
-        # Plot range controls
-        self.range_box = QGroupBox("Plot range")
+        self.range_box = QGroupBox("Plot range (X)")
         self.range_layout = QVBoxLayout(self.range_box)
         self.range_layout.setContentsMargins(6, 6, 6, 6)
         self.range_layout.setSpacing(4)
         self.build_range_controls()
-        control_layout.addWidget(self.range_box)
+        settings_layout.addWidget(self.range_box)
 
-        # buttons row
+        target_row = QHBoxLayout()
+        self.chk_show_target = QCheckBox("Show target curve")
+        self.chk_show_target.setChecked(self.show_target_curve)
+        target_row.addWidget(self.chk_show_target)
+        target_row.addStretch()
+        settings_layout.addLayout(target_row)
+
         btn_row = QHBoxLayout()
         self.btn_add_pos = QPushButton("+ Component")
         self.btn_add_neg = QPushButton("- Component")
         btn_row.addWidget(self.btn_add_pos)
         btn_row.addWidget(self.btn_add_neg)
-        control_layout.addLayout(btn_row)
+        self.btn_optimize_all = QPushButton("Global Optimize")
+        btn_row.addWidget(self.btn_optimize_all)
+        settings_layout.addLayout(btn_row)
 
         btn_row2 = QHBoxLayout()
         self.btn_save_clean = QPushButton("Save cleaned (neg)")
         self.btn_export_latex = QPushButton("Export LaTeX")
         btn_row2.addWidget(self.btn_save_clean)
         btn_row2.addWidget(self.btn_export_latex)
-        control_layout.addLayout(btn_row2)
+        settings_layout.addLayout(btn_row2)
 
         visibility_box = QGroupBox("Curve visibility")
         vis_layout = QVBoxLayout(visibility_box)
@@ -477,27 +490,7 @@ class GaussianFitUI(QWidget):
         vis_layout.addWidget(self.chk_show_total)
         vis_layout.addWidget(self.chk_show_sum_pos)
         vis_layout.addWidget(self.chk_show_sum_neg)
-        control_layout.addWidget(visibility_box)
-
-        # scroll area for component controls
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        control_layout.addWidget(self.scroll_area, stretch=1)
-
-        self.comp_panel = QWidget()
-        self.comp_layout = QVBoxLayout(self.comp_panel)
-        self.comp_layout.setContentsMargins(0, 0, 0, 0)
-        self.comp_layout.setSpacing(4)
-        self.scroll_area.setWidget(self.comp_panel)
-
-        # info label (parameter overview)
-        self.info_label = QLabel()
-        self.info_label.setStyleSheet(
-            "QLabel { background-color: #f4f4f4; border: 1px solid #ccc; padding: 4px; font-family: monospace; color: #111; }"
-        )
-        self.info_label.setText(f"{self._info_label_prefix()}\nNo components yet.")
-        self.info_label.setMinimumWidth(250)
-        control_layout.addWidget(self.info_label)
+        settings_layout.addWidget(visibility_box)
 
         file_row = QHBoxLayout()
         self.btn_save_settings = QPushButton("Save Settings")
@@ -506,15 +499,50 @@ class GaussianFitUI(QWidget):
         file_row.addWidget(self.btn_save_settings)
         file_row.addWidget(self.btn_load_settings)
         file_row.addWidget(self.btn_save_png)
-        control_layout.addLayout(file_row)
+        settings_layout.addLayout(file_row)
 
-        self.control_window = QWidget()
-        self.control_window.setWindowTitle("Controls")
-        cw_layout = QVBoxLayout(self.control_window)
+        # components window
+        comp_container = QWidget()
+        comp_layout_root = QVBoxLayout(comp_container)
+        comp_layout_root.setContentsMargins(6, 6, 6, 6)
+        comp_layout_root.setSpacing(6)
+
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        comp_layout_root.addWidget(self.scroll_area, stretch=1)
+
+        self.comp_panel = QWidget()
+        self.comp_layout = QVBoxLayout(self.comp_panel)
+        self.comp_layout.setContentsMargins(0, 0, 0, 0)
+        self.comp_layout.setSpacing(4)
+        self.scroll_area.setWidget(self.comp_panel)
+
+        self.info_label = QLabel()
+        self.info_label.setStyleSheet(
+            "QLabel { background-color: #f4f4f4; border: 1px solid #ccc; padding: 4px; font-family: monospace; color: #111; }"
+        )
+        self.info_label.setText(f"{self._info_label_prefix()}\nNo components yet.")
+        self.info_label.setMinimumWidth(300)
+        comp_layout_root.addWidget(self.info_label)
+
+        self.settings_window = QWidget()
+        self.settings_window.setWindowTitle("Settings")
+        sw_layout = QVBoxLayout(self.settings_window)
+        sw_layout.setContentsMargins(0, 0, 0, 0)
+        settings_scroll = QScrollArea()
+        settings_scroll.setWidgetResizable(True)
+        settings_scroll.setWidget(settings_container)
+        sw_layout.addWidget(settings_scroll)
+        self.settings_window.resize(460, 780)
+        self.settings_window.show()
+
+        self.components_window = QWidget()
+        self.components_window.setWindowTitle("Components")
+        cw_layout = QVBoxLayout(self.components_window)
         cw_layout.setContentsMargins(0, 0, 0, 0)
-        cw_layout.addWidget(control_container)
-        self.control_window.resize(420, 720)
-        self.control_window.show()
+        cw_layout.addWidget(comp_container)
+        self.components_window.resize(420, 780)
+        self.components_window.show()
 
         # connections
         self.btn_add_pos.clicked.connect(self.add_positive_component)
@@ -524,6 +552,7 @@ class GaussianFitUI(QWidget):
         self.btn_save_settings.clicked.connect(self.save_settings)
         self.btn_load_settings.clicked.connect(self.load_settings)
         self.btn_save_png.clicked.connect(self.save_plot_png)
+        self.btn_optimize_all.clicked.connect(self.optimize_all_parameters)
         self.btn_apply_function.clicked.connect(self.apply_function_expression)
         self.function_edit.returnPressed.connect(self.apply_function_expression)
         self.x_label_edit.editingFinished.connect(self.update_axis_labels_from_inputs)
@@ -531,10 +560,15 @@ class GaussianFitUI(QWidget):
         self.chk_show_total.stateChanged.connect(self.toggle_total_curve)
         self.chk_show_sum_pos.stateChanged.connect(self.toggle_sum_pos_curve)
         self.chk_show_sum_neg.stateChanged.connect(self.toggle_sum_neg_curve)
+        self.chk_show_target.stateChanged.connect(self.toggle_target_curve)
 
         self.apply_axis_labels()
         self.resize(1200, 720)
-        self.control_window.move(self.x() + self.width(), self.y())
+        if hasattr(self, "settings_window"):
+            self.settings_window.move(self.x() + self.width() + 10, self.y())
+        if hasattr(self, "components_window"):
+            offset_x = self.width() + (self.settings_window.width() if hasattr(self, "settings_window") else 0) + 20
+            self.components_window.move(self.x() + offset_x, self.y())
 
     def _clear_layout(self, layout):
         while layout.count():
@@ -556,6 +590,37 @@ class GaussianFitUI(QWidget):
         hint.setWordWrap(True)
         hint.setStyleSheet("color: #f0f0f0;")
         self.defaults_layout.addWidget(hint)
+
+        bounds_row = QHBoxLayout()
+        b_lab = QLabel("Global min/max:")
+        b_lab.setFixedWidth(120)
+        bounds_row.addWidget(b_lab)
+
+        self.global_min_spin = QDoubleSpinBox()
+        self.global_min_spin.setDecimals(4)
+        self.global_min_spin.setRange(-1e9, 1e9)
+        self.global_min_spin.setValue(self.global_range_min)
+        self.global_min_spin.setFixedWidth(120)
+        bounds_row.addWidget(self.global_min_spin)
+
+        self.global_max_spin = QDoubleSpinBox()
+        self.global_max_spin.setDecimals(4)
+        self.global_max_spin.setRange(-1e9, 1e9)
+        self.global_max_spin.setValue(self.global_range_max)
+        self.global_max_spin.setFixedWidth(120)
+        bounds_row.addWidget(self.global_max_spin)
+
+        bounds_row.addStretch()
+        self.defaults_layout.addLayout(bounds_row)
+
+        def on_global_min(val):
+            self.global_range_min = float(val)
+
+        def on_global_max(val):
+            self.global_range_max = float(val)
+
+        self.global_min_spin.valueChanged.connect(on_global_min)
+        self.global_max_spin.valueChanged.connect(on_global_max)
 
         for name in self.param_names:
             row = QHBoxLayout()
@@ -594,14 +659,59 @@ class GaussianFitUI(QWidget):
             self.default_controls[name] = {
                 "mantissa": mantissa_spin,
                 "exp": exp_spin,
+                "range_min": None,
+                "range_max": None,
             }
+
+            # per-parameter range overrides
+            range_row = QHBoxLayout()
+            range_lab = QLabel("range:")
+            range_lab.setFixedWidth(50)
+            range_row.addWidget(range_lab)
+
+            min_override = QDoubleSpinBox()
+            min_override.setDecimals(4)
+            min_override.setRange(-1e9, 1e9)
+            min_override.setFixedWidth(120)
+            min_override_val = self.global_param_ranges.get(name, (self.global_range_min, self.global_range_max))[0] if name in self.global_param_ranges else self.global_range_min
+            if min_override_val is None:
+                min_override_val = self.global_range_min
+            min_override.setValue(min_override_val)
+            range_row.addWidget(min_override)
+
+            max_override = QDoubleSpinBox()
+            max_override.setDecimals(4)
+            max_override.setRange(-1e9, 1e9)
+            max_override.setFixedWidth(120)
+            max_override_val = self.global_param_ranges.get(name, (self.global_range_min, self.global_range_max))[1] if name in self.global_param_ranges else self.global_range_max
+            if max_override_val is None:
+                max_override_val = self.global_range_max
+            max_override.setValue(max_override_val)
+            range_row.addWidget(max_override)
+
+            range_row.addStretch()
+            self.defaults_layout.addLayout(range_row)
+
+            def on_min_override(val, key=name):
+                self.global_param_ranges.setdefault(key, [None, None])
+                self.global_param_ranges[key][0] = float(val)
+
+            def on_max_override(val, key=name):
+                self.global_param_ranges.setdefault(key, [None, None])
+                self.global_param_ranges[key][1] = float(val)
+
+            min_override.valueChanged.connect(on_min_override)
+            max_override.valueChanged.connect(on_max_override)
+
+            self.default_controls[name]["range_min"] = min_override
+            self.default_controls[name]["range_max"] = max_override
 
     def build_range_controls(self):
         if not hasattr(self, "range_layout"):
             return
         self._clear_layout(self.range_layout)
 
-        hint = QLabel("Control x/y limits (mantissa × 10^exp). Defaults to data min/max.")
+        hint = QLabel("Control x limits (mantissa × 10^exp). Defaults to data min/max with padding; Y auto-scales.")
         hint.setWordWrap(True)
         hint.setStyleSheet("color: #f0f0f0;")
         self.range_layout.addWidget(hint)
@@ -632,8 +742,6 @@ class GaussianFitUI(QWidget):
                 target[f"{key_prefix}_exp"] = int(exp_spin.value())
                 if target is self.x_range_settings:
                     self.update_x_grid()
-                else:
-                    self.update_view_ranges_only()
                 self.range_dirty = True
 
             m_spin.valueChanged.connect(lambda _v: update_range())
@@ -647,12 +755,6 @@ class GaussianFitUI(QWidget):
         self.range_layout.addWidget(xlab)
         make_row("Min", "min", self.x_range_settings["min_m"], self.x_range_settings["min_exp"], self.x_range_settings)
         make_row("Max", "max", self.x_range_settings["max_m"], self.x_range_settings["max_exp"], self.x_range_settings)
-
-        ylab = QLabel("Y-range:")
-        ylab.setStyleSheet("color: #f0f0f0;")
-        self.range_layout.addWidget(ylab)
-        make_row("Min", "min", self.y_range_settings["min_m"], self.y_range_settings["min_exp"], self.y_range_settings)
-        make_row("Max", "max", self.y_range_settings["max_m"], self.y_range_settings["max_exp"], self.y_range_settings)
 
     # --------------------------------------------------------
     # Create per-component controls
@@ -674,6 +776,23 @@ class GaussianFitUI(QWidget):
         header_layout.addStretch()
         header_layout.addWidget(btn_delete)
         vbox.addLayout(header_layout)
+
+        # per-component expression
+        expr_row = QHBoxLayout()
+        expr_label = QLabel("f(x)=")
+        expr_label.setFixedWidth(30)
+        expr_row.addWidget(expr_label)
+        expr_edit = QLineEdit(comp.get("expr", self.function_expr))
+        expr_apply = QPushButton("set")
+        expr_apply.setFixedWidth(40)
+        expr_row.addWidget(expr_edit)
+        expr_row.addWidget(expr_apply)
+        vbox.addLayout(expr_row)
+
+        param_layout = QVBoxLayout()
+        param_layout.setContentsMargins(0, 0, 0, 0)
+        param_layout.setSpacing(3)
+        vbox.addLayout(param_layout)
 
         def make_row(label_text, param_key, mantissa_init, mantissa_min, mantissa_max, exp_init):
             row = QHBoxLayout()
@@ -712,7 +831,11 @@ class GaussianFitUI(QWidget):
             exp_box.setFixedWidth(110)
             row.addWidget(exp_box)
 
-            vbox.addLayout(row)
+            btn_opt = QPushButton("Opt")
+            btn_opt.setFixedWidth(50)
+            row.addWidget(btn_opt)
+
+            param_layout.addLayout(row)
 
             def current_exp():
                 return exp_box.value()
@@ -764,11 +887,15 @@ class GaussianFitUI(QWidget):
                 comp["exponents"][param_key] = current_exp()
                 self._param_changed(comp, param_key, spin.value(), current_exp())
 
+            def on_optimize():
+                self.optimize_parameter(comp, param_key)
+
             slider.valueChanged.connect(update_spin_from_slider)
             spin.valueChanged.connect(update_slider_from_spin)
             min_box.valueChanged.connect(update_ranges)
             max_box.valueChanged.connect(update_ranges)
             exp_box.valueChanged.connect(on_exponent_changed)
+            btn_opt.clicked.connect(on_optimize)
 
             # initial values
             exp_box.setValue(exp_init)
@@ -778,20 +905,21 @@ class GaussianFitUI(QWidget):
             spin.setValue(mantissa_init)
             update_slider_from_spin(spin.value())
 
-            return slider, spin, min_box, max_box, exp_box
+            return slider, spin, min_box, max_box, exp_box, btn_opt
 
         param_widgets = {}
-        for name in self.param_names:
+        for name in comp["param_names"]:
             v_init = comp["mantissas"][name]
             v_min, v_max = comp["ranges"][name]
             exp_init = comp["exponents"].get(name, 0)
-            s, sp, min_box, max_box, exp_box = make_row(name, name, v_init, v_min, v_max, exp_init)
+            s, sp, min_box, max_box, exp_box, btn_opt = make_row(name, name, v_init, v_min, v_max, exp_init)
             param_widgets[name] = {
                 "slider": s,
                 "spin": sp,
                 "min": min_box,
                 "max": max_box,
                 "exp": exp_box,
+                "opt": btn_opt,
             }
 
         def on_visible_changed(state):
@@ -800,6 +928,56 @@ class GaussianFitUI(QWidget):
 
         def on_delete():
             self._delete_component(comp)
+
+        def on_apply_expr():
+            new_expr = expr_edit.text().strip()
+            if not new_expr:
+                return
+            try:
+                new_names = self.extract_parameter_names(new_expr)
+            except SyntaxError as exc:
+                self.info_label.setText(f"Invalid function: {exc}")
+                return
+            defaults, default_ranges, default_exps = self.default_param_state(expr=new_expr, names=new_names)
+            params = {}
+            ranges = {}
+            exps = {}
+            mantissas = {}
+            for name in new_names:
+                params[name] = float(comp["params"].get(name, defaults.get(name, 1.0)))
+                ranges[name] = tuple(comp["ranges"].get(name, default_ranges.get(name, (-10.0, 10.0))))
+                exps[name] = int(comp["exponents"].get(name, default_exps.get(name, 0)))
+                mantissas[name] = float(comp["mantissas"].get(name, params[name]))
+            comp["expr"] = new_expr
+            comp["param_names"] = new_names
+            comp["params"] = params
+            comp["ranges"] = ranges
+            comp["exponents"] = exps
+            comp["mantissas"] = mantissas
+            # rebuild UI
+            while param_layout.count():
+                item = param_layout.takeAt(0)
+                w = item.widget()
+                if w:
+                    w.deleteLater()
+                elif item.layout():
+                    self._clear_layout(item.layout())
+            new_param_widgets = {}
+            for name in comp["param_names"]:
+                v_init = comp["mantissas"][name]
+                v_min, v_max = comp["ranges"][name]
+                exp_init = comp["exponents"].get(name, 0)
+                s, sp, min_box, max_box, exp_box, btn_opt = make_row(name, name, v_init, v_min, v_max, exp_init)
+                new_param_widgets[name] = {
+                    "slider": s,
+                    "spin": sp,
+                    "min": min_box,
+                    "max": max_box,
+                    "exp": exp_box,
+                    "opt": btn_opt,
+                }
+            comp["widgets"]["params"] = new_param_widgets
+            self.update_curves()
 
         def on_label_changed(text):
             comp["label"] = text.strip() or comp.get("label") or group.title()
@@ -829,11 +1007,13 @@ class GaussianFitUI(QWidget):
 
         chk_visible.stateChanged.connect(on_visible_changed)
         btn_delete.clicked.connect(on_delete)
+        expr_apply.clicked.connect(on_apply_expr)
 
         comp["widgets"].update({
             "group": group,
             "visible": chk_visible,
             "delete": btn_delete,
+            "expr_edit": expr_edit,
             "color": color_edit,
             "label_edit": lbl_edit,
             "params": param_widgets,
@@ -897,6 +1077,7 @@ class GaussianFitUI(QWidget):
         N_high = max(2000, len(self.x_data) * 5)
         self.x_hr = np.linspace(x_min, x_max, N_high)
         self.range_dirty = True
+        self.rebuild_target_curve()
         self.update_curves()
 
     def update_view_ranges_only(self):
@@ -905,11 +1086,12 @@ class GaussianFitUI(QWidget):
     # --------------------------------------------------------
     # Evaluate model and update curves
     # --------------------------------------------------------
-    def evaluate_function(self, x, params):
+    def evaluate_function(self, x, params, expr=None):
         local_ns = dict(self.safe_namespace)
         local_ns.update(params)
         local_ns["x"] = x
-        result = eval(self.function_expr, {"__builtins__": {}}, local_ns)
+        use_expr = expr or self.function_expr
+        result = eval(use_expr, {"__builtins__": {}}, local_ns)
         arr = np.asarray(result, dtype=float)
 
         # Allow constant (scalar) functions by broadcasting across x
@@ -920,6 +1102,80 @@ class GaussianFitUI(QWidget):
             raise ValueError(f"Function output length {arr.shape[0]} does not match x length {len(x)}.")
 
         return arr
+
+    def _evaluate_total_on(self, x_vals):
+        if not self.components:
+            return None
+        total = np.zeros_like(x_vals, dtype=float)
+        any_used = False
+        for c in self.components:
+            if not c.get("visible", True):
+                continue
+            try:
+                y_single = np.array(self.evaluate_function(x_vals, c["params"], expr=c.get("expr")), dtype=float)
+            except Exception:
+                return None
+            if c["type"] == "pos":
+                total += y_single
+            else:
+                total -= y_single
+            any_used = True
+        return total if any_used else None
+
+    def rebuild_target_curve(self):
+        # Build a dense “connect-the-dots” style target curve over x_hr
+        self.target_x = self.x_hr
+        y_raw = self.y_data
+        method = "linear"
+
+        # Start with linear interpolation (captures peaks/edges)
+        y_dense = np.interp(self.x_hr, self.x_data, y_raw, left=y_raw[0], right=y_raw[-1])
+
+        # Light smoothing to reduce high-frequency noise without blurring peaks
+        try:
+            from scipy.signal import savgol_filter
+
+            window = max(5, int(len(y_dense) / 600) | 1)  # very small window to keep peaks
+            y_smooth = savgol_filter(y_dense, window_length=window, polyorder=2, mode="interp")
+            method = "linear+savgol_light"
+        except Exception:
+            k = max(2, int(len(y_dense) / 600))
+            if k % 2 == 0:
+                k += 1
+            kernel = np.ones(k) / k
+            y_smooth = np.convolve(y_dense, kernel, mode="same")
+            method = "linear+moving_avg_light"
+
+        if self.y_err is not None:
+            err_interp = np.interp(self.x_hr, self.x_data, self.y_err, left=self.y_err[0], right=self.y_err[-1])
+            err_interp[err_interp == 0] = 1.0
+            self.target_err = err_interp
+        else:
+            self.target_err = np.ones_like(self.x_hr, dtype=float)
+
+        self.target_y = y_smooth
+        print(f"[info] Target curve built using {method}")
+        if self.target_curve_item is not None:
+            self.target_curve_item.setData(self.x_hr, self.target_y)
+            self.target_curve_item.setVisible(self.show_target_curve)
+
+    def compute_chi_square(self):
+        total = self._evaluate_total_on(self.x_data)
+        if total is None:
+            return None
+        x_vals = self.target_x if self.target_x is not None else self.x_data
+        target = self.target_y if self.target_y is not None else self.y_data
+        sigma = self.target_err if self.target_err is not None else (np.ones_like(target, dtype=float))
+        model = self._evaluate_total_on(x_vals)
+        if model is None:
+            return None
+        resid = (target - model) / sigma
+        chi2 = float(np.sum(resid ** 2))
+        n_points = len(target)
+        n_params = sum(len(c.get("param_names", [])) for c in self.components) if self.components else 0
+        dof = max(n_points - n_params, 1)
+        red_chi2 = chi2 / dof
+        return chi2, red_chi2, n_points, n_params, dof
 
     def _info_label_prefix(self):
         return f"CSV format: {'value/error pairs' if self.has_error_columns else 'values only'}"
@@ -977,17 +1233,10 @@ class GaussianFitUI(QWidget):
         info_lines = []
         for i, c in enumerate(self.components):
             try:
-                y_single = np.array(self.evaluate_function(self.x_hr, c["params"]), dtype=float)
+                y_single = np.array(self.evaluate_function(self.x_hr, c["params"], expr=c.get("expr")), dtype=float)
             except Exception as exc:
                 self.info_label.setText(f"Error evaluating function: {exc}")
                 return
-
-            if c["type"] == "pos":
-                total += y_single
-                y_pos_hr += y_single
-            else:
-                total -= y_single
-                y_neg_hr += y_single
 
             curve = c.get("curve")
             if curve is not None:
@@ -997,14 +1246,37 @@ class GaussianFitUI(QWidget):
                 else:
                     curve.setVisible(False)
 
-            param_str = ", ".join(f"{p}={c['params'][p]:.3g}" for p in self.param_names)
+            if not c.get("visible", True):
+                param_str = ", ".join(f"{p}={c['params'][p]:.3g}" for p in c.get("param_names", []))
+                info_lines.append(
+                    f"{i}: {'+' if c['type']=='pos' else '-'}  {param_str}, vis={int(c['visible'])}"
+                )
+                continue
+
+            if c["type"] == "pos":
+                total += y_single
+                y_pos_hr += y_single
+            else:
+                total -= y_single
+                y_neg_hr += y_single
+
+            param_str = ", ".join(f"{p}={c['params'][p]:.3g}" for p in c.get("param_names", []))
             info_lines.append(
                 f"{i}: {'+' if c['type']=='pos' else '-'}  {param_str}, vis={int(c['visible'])}"
             )
 
         info_text = "\n".join(info_lines)
-        if info_prefix:
-            info_text = f"{info_prefix}\n{info_text}"
+        chi = self.compute_chi_square()
+        chi_line = ""
+        if chi is not None:
+            chi2, red_chi2, n_points, n_params, dof = chi
+            chi_line = f"chi2={chi2:.3g}, red_chi2={red_chi2:.3g}, N={n_points}, params={n_params}, dof={dof}"
+        if info_prefix or chi_line:
+            prefix_parts = [info_prefix] if info_prefix else []
+            if chi_line:
+                prefix_parts.append(chi_line)
+            prefix = "\n".join(prefix_parts)
+            info_text = f"{prefix}\n{info_text}"
         self.info_label.setText(info_text)
 
         if self.show_total_curve:
@@ -1045,7 +1317,7 @@ class GaussianFitUI(QWidget):
             if c["type"] != "neg":
                 continue
             try:
-                y_component = np.array(self.evaluate_function(self.x_data, c["params"]), dtype=float)
+                y_component = np.array(self.evaluate_function(self.x_data, c["params"], expr=c.get("expr")), dtype=float)
             except Exception as exc:
                 print(f"Error evaluating function for negative component: {exc}")
                 return
@@ -1074,7 +1346,12 @@ class GaussianFitUI(QWidget):
             print("No components to export.")
             return
 
-        columns = ["$i$", "sign"] + [f"${name}$" for name in self.param_names]
+        all_params = []
+        for c in self.components:
+            for name in c.get("param_names", []):
+                if name not in all_params:
+                    all_params.append(name)
+        columns = ["$i$", "sign", "$expr$"] + [f"${name}$" for name in all_params]
         lines = []
         lines.append(r"\begin{tabular}{%s}" % (" ".join(["c"] * len(columns))))
         lines.append(r"\hline")
@@ -1083,10 +1360,15 @@ class GaussianFitUI(QWidget):
 
         for i, c in enumerate(self.components):
             sign = "+" if c["type"] == "pos" else "-"
-            params_text = " & ".join(f"{c['params'][p]:.3g}" for p in self.param_names)
-            line = f"{i} & {sign}"
-            if params_text:
-                line += f" & {params_text}"
+            params_texts = []
+            for p in all_params:
+                if p in c.get("params", {}):
+                    params_texts.append(f"{c['params'][p]:.3g}")
+                else:
+                    params_texts.append("")
+            line = f"{i} & {sign} & {c.get('expr','')}"
+            if params_texts:
+                line += " & " + " & ".join(params_texts)
             line += r" \\"
             lines.append(line)
 
@@ -1118,6 +1400,8 @@ class GaussianFitUI(QWidget):
             comps.append({
                 "type": c["type"],
                 "visible": c["visible"],
+                "expr": c.get("expr", self.function_expr),
+                "param_names": c.get("param_names", []),
                 "params": c["params"],
                 "ranges": c["ranges"],
                 "exponents": c.get("exponents", {}),
@@ -1134,7 +1418,9 @@ class GaussianFitUI(QWidget):
             "components": comps,
             "param_defaults": self.param_default_settings,
             "x_range": self.x_range_settings,
-            "y_range": self.y_range_settings,
+            "global_range_min": self.global_range_min,
+            "global_range_max": self.global_range_max,
+            "global_param_ranges": self.global_param_ranges,
         }
 
         out_path = self._settings_path(slot)
@@ -1170,10 +1456,10 @@ class GaussianFitUI(QWidget):
         # ensure defaults include all params
         self.ensure_default_settings()
         self.x_range_settings = data.get("x_range", self.x_range_settings) or self.x_range_settings
-        self.y_range_settings = data.get("y_range", self.y_range_settings) or self.y_range_settings
-        if not self.y_range_settings:
-            self.reset_y_range_defaults()
         self.range_dirty = True
+        self.global_range_min = data.get("global_range_min", self.global_range_min)
+        self.global_range_max = data.get("global_range_max", self.global_range_max)
+        self.global_param_ranges = data.get("global_param_ranges", self.global_param_ranges) or self.global_param_ranges
 
         self.x_label = data.get("x_label", self.x_label)
         self.y_label = data.get("y_label", self.y_label)
@@ -1182,6 +1468,16 @@ class GaussianFitUI(QWidget):
         self.apply_axis_labels()
 
         self.build_default_controls()
+        if hasattr(self, "global_min_spin"):
+            self.global_min_spin.setValue(self.global_range_min)
+        if hasattr(self, "global_max_spin"):
+            self.global_max_spin.setValue(self.global_range_max)
+        # update per-parameter range overrides in UI
+        for name, controls in self.default_controls.items():
+            if controls.get("range_min") is not None:
+                controls["range_min"].setValue(self.global_param_ranges.get(name, [self.global_range_min, self.global_range_max])[0])
+            if controls.get("range_max") is not None:
+                controls["range_max"].setValue(self.global_param_ranges.get(name, [self.global_range_min, self.global_range_max])[1])
         self._clear_components()
 
         for entry in data.get("components", []):
@@ -1189,10 +1485,21 @@ class GaussianFitUI(QWidget):
             ranges = entry.get("ranges", {})
             exponents = entry.get("exponents", {})
             mantissas = entry.get("mantissas", {})
+            expr = entry.get("expr", self.function_expr)
             params_with_label = dict(params)
             if "label" in entry:
                 params_with_label["label"] = entry["label"]
-            comp = self._add_component(entry.get("type", "pos"), params_with_label, ranges, exponents, mantissas, visible=entry.get("visible", True), update=False, color=entry.get("color"))
+            comp = self._add_component(
+                entry.get("type", "pos"),
+                params_with_label,
+                ranges,
+                exponents,
+                mantissas,
+                visible=entry.get("visible", True),
+                update=False,
+                color=entry.get("color"),
+                expr=expr,
+            )
 
             # restore visibility checkbox
             comp["widgets"]["visible"].setChecked(comp["visible"])
@@ -1201,7 +1508,7 @@ class GaussianFitUI(QWidget):
             comp["widgets"]["color"].setText(comp.get("color", ""))
             self._update_component_pen(comp)
 
-            for name in self.param_names:
+            for name in comp.get("param_names", []):
                 controls = comp["widgets"]["params"][name]
                 exp_val = comp["exponents"].get(name, 0)
                 v_min, v_max = comp["ranges"][name]
@@ -1234,7 +1541,6 @@ class GaussianFitUI(QWidget):
         self.safe_namespace = self.build_safe_namespace()
         self.reset_param_defaults()
         self.build_default_controls()
-        self.rebuild_components_for_new_params()
         self.update_formula_legend()
         self.update_curves()
 
@@ -1285,9 +1591,49 @@ class GaussianFitUI(QWidget):
         self.plot_widget.setLabel("bottom", self.x_label)
         self.plot_widget.setLabel("left", self.y_label)
 
+    def configure_from_config(self, config: Any):
+        """Apply basic settings from a FunctionFitterConfig-like object."""
+        expr = getattr(config, "function_expr", None)
+        if expr:
+            self.function_edit.setText(expr)
+            self.apply_function_expression()
+
+        x_lab = getattr(config, "x_label", None)
+        y_lab = getattr(config, "y_label", None)
+        if x_lab:
+            self.x_label = x_lab
+            self.x_label_edit.setText(x_lab)
+        if y_lab:
+            self.y_label = y_lab
+            self.y_label_edit.setText(y_lab)
+        self.apply_axis_labels()
+
+        if getattr(config, "show_total_curve", None) is not None:
+            self.chk_show_total.setChecked(bool(config.show_total_curve))
+        if getattr(config, "show_sum_pos", None) is not None:
+            self.chk_show_sum_pos.setChecked(bool(config.show_sum_pos))
+        if getattr(config, "show_sum_neg", None) is not None:
+            self.chk_show_sum_neg.setChecked(bool(config.show_sum_neg))
+        if getattr(config, "show_target_curve", None) is not None:
+            self.chk_show_target.setChecked(bool(config.show_target_curve))
+
+        slot = getattr(config, "settings_slot", None)
+        if slot:
+            self.settings_slot_edit.setText(str(slot))
+
+        if getattr(config, "load_settings", False):
+            try:
+                self.load_settings()
+            except Exception as exc:
+                print(f"Could not load settings for {self.input_path}: {exc}", file=sys.stderr)
+
+        self.update_curves()
+
     def closeEvent(self, event):
-        if hasattr(self, "control_window") and self.control_window is not None:
-            self.control_window.close()
+        if hasattr(self, "settings_window") and self.settings_window is not None:
+            self.settings_window.close()
+        if hasattr(self, "components_window") and self.components_window is not None:
+            self.components_window.close()
         super().closeEvent(event)
 
     def toggle_sum_curves(self, state):
@@ -1305,6 +1651,12 @@ class GaussianFitUI(QWidget):
         self.show_sum_neg = state == Qt.CheckState.Checked
         self.update_curves()
 
+    def toggle_target_curve(self, state):
+        self.show_target_curve = state == Qt.CheckState.Checked
+        if self.target_curve_item is not None:
+            self.target_curve_item.setVisible(self.show_target_curve)
+        self.update_curves()
+
     def _settings_path(self, slot: str):
         if not slot:
             slot = "fit1"
@@ -1318,24 +1670,18 @@ class GaussianFitUI(QWidget):
         try:
             x_min = self.x_range_min()
             x_max = self.x_range_max()
-            y_min = self.y_range_min()
-            y_max = self.y_range_max()
         except Exception:
             return
 
-        if x_max <= x_min or y_max <= y_min:
+        if x_max <= x_min:
             return
 
-        # No extra padding here; defaults already include 5% padding.
-        x_pad = 0.0
-        y_pad = 0.0
-
         view = self.plot_widget.getViewBox()
-        view.disableAutoRange()
-        view.setXRange(x_min - x_pad, x_max + x_pad, padding=0)
-        view.setYRange(y_min - y_pad, y_max + y_pad, padding=0)
+        view.enableAutoRange(axis='x', enable=False)
+        view.enableAutoRange(axis='y', enable=True)
+        view.setXRange(x_min, x_max, padding=0)
         self.range_dirty = False
-        self._log_range_debug("apply_view_ranges", x_min, x_max, y_min, y_max, x_pad, y_pad)
+        self._log_range_debug("apply_view_ranges", x_min, x_max, None, None, 0.0, 0.0)
         self._log_view_state(view)
 
     def save_plot_png(self):
@@ -1351,11 +1697,13 @@ class GaussianFitUI(QWidget):
             print(f"Failed to save plot: {exc}")
 
     def _legend_label_for_component(self, comp):
-        param_str = ", ".join(f"{p}={comp['params'][p]:.3g}" for p in self.param_names)
+        param_str = ", ".join(f"{p}={comp['params'][p]:.3g}" for p in comp.get("param_names", []))
         return f"{comp.get('label', '')} ({param_str})" if param_str else comp.get("label", "")
 
     def _log_range_debug(self, label, x_min, x_max, y_min, y_max, x_pad, y_pad):
         # Allow None when skipped
+        if not self.verbose_debug:
+            return
         if None in (x_min, x_max, y_min, y_max, x_pad, y_pad):
             print(f"[debug] {label}: skipped or not ready")
             return
@@ -1371,6 +1719,245 @@ class GaussianFitUI(QWidget):
             print(f"[debug] viewRange: x=({x0:.6g},{x1:.6g}) y=({y0:.6g},{y1:.6g})")
         except Exception:
             pass
+
+    # --------------------------------------------------------
+    # Optimization utilities
+    # --------------------------------------------------------
+    def _visible_param_items(self):
+        items = []
+        for c in self.components:
+            if not c.get("visible", True):
+                continue
+            for n in c.get("param_names", []):
+                items.append((c, n))
+        return items
+
+    def _param_bounds_actual(self, comp, name):
+        lo_m, hi_m = comp["ranges"][name]
+        exp = comp["exponents"].get(name, 0)
+        lo = self.combine_mantissa_exponent(lo_m, exp)
+        hi = self.combine_mantissa_exponent(hi_m, exp)
+        if hi < lo:
+            hi = lo + 1.0
+        return lo, hi
+
+    def _get_param_vector(self, items):
+        return np.array([comp["params"][name] for comp, name in items], dtype=float)
+
+    def _apply_param_vector(self, vec, items):
+        for val, (comp, name) in zip(vec, items):
+            self._set_param_actual(comp, name, float(val))
+
+    def _set_param_actual(self, comp, key, actual_val):
+        exp = comp["exponents"].get(key, 0)
+        factor = 10 ** exp if exp else 1.0
+        mantissa = actual_val / factor
+        comp["mantissas"][key] = mantissa
+        comp["params"][key] = actual_val
+        if key in comp["widgets"]["params"]:
+            controls = comp["widgets"]["params"][key]
+            lo_m, hi_m = comp["ranges"][key]
+            lo = self.combine_mantissa_exponent(lo_m, exp)
+            hi = self.combine_mantissa_exponent(hi_m, exp)
+            if actual_val < lo or actual_val > hi or hi <= lo:
+                span = max(abs(actual_val) * 0.5, 1e-6)
+                lo = actual_val - span
+                hi = actual_val + span
+                comp["ranges"][key] = (lo / factor, hi / factor)
+            controls["min"].blockSignals(True)
+            controls["max"].blockSignals(True)
+            controls["spin"].blockSignals(True)
+            controls["slider"].blockSignals(True)
+            controls["min"].setValue(comp["ranges"][key][0])
+            controls["max"].setValue(comp["ranges"][key][1])
+            controls["spin"].setRange(comp["ranges"][key][0], comp["ranges"][key][1])
+            controls["spin"].setValue(mantissa)
+            denom = controls["max"].value() - controls["min"].value()
+            t = (mantissa - controls["min"].value()) / (denom if denom else 1)
+            controls["slider"].setValue(int(1000 * t))
+            controls["min"].blockSignals(False)
+            controls["max"].blockSignals(False)
+            controls["spin"].blockSignals(False)
+            controls["slider"].blockSignals(False)
+
+    def _objective_from_vector(self, vec, items):
+        backups = []
+        for val, (comp, name) in zip(vec, items):
+            backups.append((comp, name, comp["params"][name], comp["mantissas"][name]))
+            self._set_param_actual(comp, name, float(val))
+        try:
+            chi = self.compute_chi_square()
+            return chi[0] if chi is not None else 1e12
+        finally:
+            for comp, name, p_val, m_val in backups:
+                comp["params"][name] = p_val
+                comp["mantissas"][name] = m_val
+
+    def optimize_all_parameters(self):
+        items = self._visible_param_items()
+        if not items:
+            print("No visible components to optimize.")
+            return
+
+        print(f"[info] Global optimize started for {len(items)} parameters across {len(self.components)} components.")
+        initial = self._get_param_vector(items)
+        bounds = [self._param_bounds_actual(comp, name) for comp, name in items]
+
+        best_vec = initial.copy()
+        best_chi = self._objective_from_vector(best_vec, items)
+        print(f"[info] Initial chi2: {best_chi:.6g}")
+
+        try:
+            from scipy.optimize import minimize, differential_evolution
+            # differential evolution with more budget
+            de_maxiter = 1500
+            de_popsize = 80
+            progress = {"iter": 0}
+
+            def de_callback(xk, convergence):
+                progress["iter"] += 1
+                if progress["iter"] % 50 == 0 or progress["iter"] == de_maxiter:
+                    print(f"[info] DE progress: {progress['iter']}/{de_maxiter}")
+                return False
+
+            try:
+                result_de = differential_evolution(
+                    lambda v: self._objective_from_vector(v, items),
+                    bounds=bounds,
+                    maxiter=de_maxiter,
+                    popsize=de_popsize,
+                    tol=1e-6,
+                    mutation=(0.7, 1.9),
+                    recombination=0.9,
+                    init="sobol",
+                    polish=False,
+                    workers=8,
+                    callback=de_callback
+                )
+                if result_de.success and result_de.fun < best_chi:
+                    best_vec = result_de.x
+                    best_chi = result_de.fun
+                print(f"[info] DE result: success={result_de.success}, chi2={result_de.fun:.6g}")
+            except Exception as exc:
+                print(f"[debug] differential_evolution failed: {exc}")
+
+            # multi-start local refinement from top DE candidates + random samples
+            candidates = [best_vec]
+            if 'result_de' in locals() and hasattr(result_de, 'population'):
+                pops = result_de.population
+                scores = [self._objective_from_vector(p, items) for p in pops[: min(len(pops), 30)]]
+                top_idx = sorted(range(len(scores)), key=lambda i: scores[i])[:5]
+                candidates.extend([pops[i] for i in top_idx])
+            # extra random starts
+            for _ in range(5):
+                trial = np.array([np.random.uniform(lo, hi) for lo, hi in bounds], dtype=float)
+                candidates.append(trial)
+
+            for cand in candidates:
+                result = minimize(
+                    lambda v: self._objective_from_vector(v, items),
+                    cand,
+                    method="L-BFGS-B",
+                    bounds=bounds,
+                )
+                if result.success and result.fun < best_chi:
+                    best_vec = result.x
+                    best_chi = result.fun
+            print(f"[info] Local refine best chi2={best_chi:.6g}")
+        except Exception as exc:
+            print(f"[debug] SciPy optimize unavailable or failed: {exc}")
+            # fallback random search around current ranges
+            for i in range(2000):
+                trial = []
+                for (comp, name), (lo, hi) in zip(items, bounds):
+                    trial.append(np.random.uniform(lo, hi))
+                chi = self._objective_from_vector(trial, items)
+                if chi < best_chi:
+                    best_chi = chi
+                    best_vec = np.array(trial)
+                if (i + 1) % 200 == 0:
+                    pct = 100.0 * (i + 1) / 2000
+                    print(f"[info] Random search progress: {i+1}/2000 ({pct:.1f}%), best chi2={best_chi:.6g}")
+
+        # apply best and refresh UI
+        self._apply_param_vector(best_vec, items)
+        self.update_curves()
+        print(f"[info] Global optimize done. Best chi2={best_chi:.6g}")
+
+    def optimize_parameter(self, comp, param_key):
+        if param_key not in comp["ranges"]:
+            return
+        lo, hi = comp["ranges"][param_key]
+        exp = comp["exponents"].get(param_key, 0)
+
+        # coarse-to-fine grid search
+        best_val = None
+        best_chi = None
+        grid_sizes = [50, 50]
+        bounds = [(lo, hi)]
+
+        for n in grid_sizes:
+            cur_lo, cur_hi = bounds[-1]
+            if cur_hi <= cur_lo:
+                cur_lo, cur_hi = min(lo, hi), max(lo, hi) + 1e-6
+            grid = np.linspace(cur_lo, cur_hi, n)
+            for v in grid:
+                chi = self._objective_chi(comp, param_key, v, exp)
+                if chi is None:
+                    continue
+                if best_chi is None or chi < best_chi:
+                    best_chi = chi
+                    best_val = v
+            # tighten bounds around best
+            if best_val is not None:
+                width = (cur_hi - cur_lo) / max(n - 1, 1)
+                bounds.append((best_val - width, best_val + width))
+
+        if best_val is None:
+            print(f"[debug] Optimization failed for {param_key}")
+            return
+
+        # set new value and adjust ranges to center around best
+        span = max(abs(best_val) * 0.5, 1e-6)
+        new_lo = best_val - span
+        new_hi = best_val + span
+
+        comp["ranges"][param_key] = (new_lo, new_hi)
+        comp["exponents"][param_key] = exp
+        comp["mantissas"][param_key] = best_val
+        comp["params"][param_key] = self.combine_mantissa_exponent(best_val, exp)
+
+        controls = comp["widgets"]["params"][param_key]
+        controls["min"].blockSignals(True)
+        controls["max"].blockSignals(True)
+        controls["spin"].blockSignals(True)
+        controls["slider"].blockSignals(True)
+        controls["min"].setValue(new_lo)
+        controls["max"].setValue(new_hi)
+        controls["spin"].setRange(new_lo, new_hi)
+        controls["spin"].setValue(best_val)
+        # update slider position
+        t = (best_val - new_lo) / (new_hi - new_lo) if new_hi > new_lo else 0.5
+        controls["slider"].setValue(int(1000 * t))
+        controls["min"].blockSignals(False)
+        controls["max"].blockSignals(False)
+        controls["spin"].blockSignals(False)
+        controls["slider"].blockSignals(False)
+
+        self.update_curves()
+
+    def _objective_chi(self, comp, param_key, mantissa_val, exp):
+        # temporarily set
+        old_val = comp["params"][param_key]
+        old_m = comp["mantissas"][param_key]
+        comp["params"][param_key] = self.combine_mantissa_exponent(mantissa_val, exp)
+        comp["mantissas"][param_key] = mantissa_val
+        try:
+            chi = self.compute_chi_square()
+            return chi[0] if chi is not None else None
+        finally:
+            comp["params"][param_key] = old_val
+            comp["mantissas"][param_key] = old_m
 
     def update_legend(self, y_pos_hr, y_neg_hr, total):
         try:
@@ -1396,15 +1983,23 @@ class GaussianFitUI(QWidget):
         if self.show_sum_neg and self.sum_neg_curve.isVisible():
             self.legend.addItem(self.sum_neg_curve, "Sum -")
 
+        if self.show_target_curve and self.target_curve_item is not None and self.target_curve_item.isVisible():
+            self.legend.addItem(self.target_curve_item, "Target")
+
         for i, comp in enumerate(self.components):
             if not comp.get("visible", True):
                 continue
             label = self._legend_label_for_component(comp)
             self.legend.addItem(comp["curve"], label or f"Comp {i}")
 
-        # formula entry (dummy item)
+        # formula entry (dummy item) + chi2 info
         formula_item = pg.PlotDataItem([], [])
-        self.legend.addItem(formula_item, f"f(x) = {self.function_expr_to_latex(self.function_expr)}")
+        chi = self.compute_chi_square()
+        chi_text = ""
+        if chi is not None:
+            chi2, red_chi2, n_points, n_params, dof = chi
+            chi_text = f" | χ²_red={red_chi2:.3g} (χ²={chi2:.3g}, dof={dof})"
+        self.legend.addItem(formula_item, f"f(x) = {self.function_expr_to_latex(self.function_expr)}{chi_text}")
 
 
 # ------------------------------------------------------------
@@ -1415,7 +2010,7 @@ def parse_args():
     parser.add_argument(
         "csv_path",
         nargs="?",
-        default="physics-experiment-eval-tool/fitter/function_fitter_test_data/Pb_energy.csv",
+        default="fitter/function_fitter_test_data/synthetic_04_comp_00.csv",
         help="Path to the CSV file containing the measurements.",
     )
     parser.add_argument(
@@ -1423,10 +2018,28 @@ def parse_args():
         action="store_true",
         help="Treat the CSV as value/error pairs (val, err_val, val2, err_val2, ...).",
     )
+    parser.add_argument(
+        "--config",
+        help="Name of a config object inside function_fitter_config.py. When set, csv_path is ignored.",
+    )
+    parser.add_argument(
+        "--y-error-column",
+        help="Name of column containing y errors (auto-detected when possible).",
+    )
+    parser.add_argument(
+        "--no-gui",
+        action="store_true",
+        help="Headless mode: do not show the window; useful for scripted runs.",
+    )
+    parser.add_argument(
+        "--optimize",
+        action="store_true",
+        help="When used with --no-gui, run global optimization before printing chi^2.",
+    )
     return parser.parse_args()
 
 
-def load_input_data(input_path: Path, has_error_columns: bool):
+def load_input_data(input_path: Path, has_error_columns: bool, y_error_column: str | None = None):
     df = pd.read_csv(input_path)
     if df.isnull().any().any():
         raise ValueError("CSV contains missing values; every row must provide the expected number of entries.")
@@ -1442,21 +2055,84 @@ def load_input_data(input_path: Path, has_error_columns: bool):
         y = df.iloc[:, 2].values.astype(float)
         y_err = df.iloc[:, 3].values.astype(float)
     else:
-        if num_cols != 2:
-            raise ValueError(
-                f"Expected exactly two columns (x, y) when error columns are disabled, but found {num_cols}."
-                " If your CSV stores value/error pairs, rerun with --has-error-columns."
-            )
         x = df.iloc[:, 0].values.astype(float)
         y = df.iloc[:, 1].values.astype(float)
         x_err = None
         y_err = None
 
+        # Auto-detect y errors
+        if y_error_column and y_error_column in df.columns:
+            y_err = df[y_error_column].values.astype(float)
+        elif num_cols >= 3:
+            # Prefer third column if present
+            y_err = df.iloc[:, 2].values.astype(float)
+            # If labeled, ensure it looks like an error column; else allow anyway
+        if y_err is None and num_cols != 2:
+            raise ValueError(
+                f"Expected columns (x, y[, y_err]) when error columns are disabled, but found {num_cols}."
+                " If your CSV stores value/error pairs, rerun with --has-error-columns."
+            )
+
     return x, y, x_err, y_err
+
+
+def run_function_fitter(config, show_window: bool = True, run_optimize: bool = False, return_result: bool = False):
+    """Launch the function fitter using a FunctionFitterConfig-style object."""
+    csv_path = Path(config.csv_path)
+    if not csv_path.is_absolute():
+        csv_path = (Path(__file__).resolve().parent / csv_path).resolve()
+
+    if not csv_path.exists():
+        raise FileNotFoundError(f"CSV not found: {csv_path}")
+
+    x, y, x_err, y_err = load_input_data(
+        csv_path,
+        getattr(config, "has_error_columns", False),
+        getattr(config, "y_error_column", None),
+    )
+
+    app = QApplication(sys.argv)
+    win = GaussianFitUI(
+        x,
+        y,
+        csv_path,
+        x_err=x_err,
+        y_err=y_err,
+        has_error_columns=getattr(config, "has_error_columns", False),
+    )
+    win.configure_from_config(config)
+    if run_optimize:
+        try:
+            win.optimize_all_parameters()
+        except Exception as exc:
+            print(f"[warn] optimize_all_parameters failed: {exc}", file=sys.stderr)
+    if show_window:
+        win.show()
+        sys.exit(app.exec_())
+    # headless: compute chi2 and print summary
+    chi = win.compute_chi_square()
+    if chi is None:
+        print("chi^2 could not be computed.")
+    else:
+        chi2, red_chi2, n_points, n_params, dof = chi
+        print(f"chi^2={chi2:.6g}, chi^2_red={red_chi2:.6g}, dof={dof}, points={n_points}, params={n_params}")
+    app.quit()
+    if return_result:
+        return chi
 
 
 def main():
     args = parse_args()
+
+    if args.config:
+        try:
+            cfg_mod = __import__("function_fitter_config")
+            cfg = getattr(cfg_mod, args.config)
+        except Exception as exc:
+            print(f"Could not load config '{args.config}' from function_fitter_config.py: {exc}", file=sys.stderr)
+            sys.exit(1)
+        return run_function_fitter(cfg, show_window=not args.no_gui, run_optimize=args.optimize)
+
     input_path = Path(args.csv_path)
 
     if not input_path.exists():
@@ -1464,15 +2140,26 @@ def main():
         sys.exit(1)
 
     try:
-        x, y, x_err, y_err = load_input_data(input_path, args.has_error_columns)
+        x, y, x_err, y_err = load_input_data(input_path, args.has_error_columns, args.y_error_column)
     except Exception as exc:
         print(f"Error while reading {input_path}: {exc}", file=sys.stderr)
         sys.exit(1)
 
     app = QApplication(sys.argv)
     win = GaussianFitUI(x, y, input_path, x_err=x_err, y_err=y_err, has_error_columns=args.has_error_columns)
-    win.show()
-    sys.exit(app.exec_())
+    if args.optimize:
+        try:
+            win.optimize_all_parameters()
+        except Exception as exc:
+            print(f"[warn] optimize_all_parameters failed: {exc}", file=sys.stderr)
+    if not args.no_gui:
+        win.show()
+        sys.exit(app.exec_())
+    chi = win.compute_chi_square()
+    if chi is not None:
+        chi2, red_chi2, n_points, n_params, dof = chi
+        print(f"chi^2={chi2:.6g}, chi^2_red={red_chi2:.6g}, dof={dof}, points={n_points}, params={n_params}")
+    app.quit()
 
 
 if __name__ == "__main__":

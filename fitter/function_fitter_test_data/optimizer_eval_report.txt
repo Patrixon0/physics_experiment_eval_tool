@@ -1,0 +1,32 @@
+Eval run at 2025-12-05 03:09:25
+synthetic_01_comp_00.csv: target chi^2=934.2, optimized chi^2=1932, ratio=1.068
+synthetic_01_comp_01.csv: target chi^2=1297, optimized chi^2=8629, ratio=5.652
+synthetic_01_comp_02.csv: target chi^2=1570, optimized chi^2=5790, ratio=2.689
+synthetic_01_comp_03.csv: target chi^2=3713, optimized chi^2=1.325e+04, ratio=2.568
+synthetic_01_comp_04.csv: target chi^2=1279, optimized chi^2=1.088e+04, ratio=7.510
+synthetic_02_comp_00.csv: target chi^2=1567, optimized chi^2=1.031e+05, ratio=64.763
+synthetic_02_comp_01.csv: target chi^2=3957, optimized chi^2=2.124e+05, ratio=52.668
+synthetic_02_comp_02.csv: target chi^2=1373, optimized chi^2=4.623e+04, ratio=32.666
+synthetic_02_comp_03.csv: target chi^2=1472, optimized chi^2=2.254e+04, ratio=14.315
+synthetic_02_comp_04.csv: target chi^2=1906, optimized chi^2=3.138e+05, ratio=163.670
+synthetic_03_comp_00.csv: target chi^2=2345, optimized chi^2=1.076e+05, ratio=44.882
+synthetic_03_comp_01.csv: target chi^2=2905, optimized chi^2=3.26e+05, ratio=111.196
+synthetic_03_comp_02.csv: target chi^2=2938, optimized chi^2=3.075e+05, ratio=103.654
+synthetic_03_comp_03.csv: target chi^2=3339, optimized chi^2=8.765e+04, ratio=25.248
+synthetic_03_comp_04.csv: target chi^2=6050, optimized chi^2=2.593e+05, ratio=41.855
+synthetic_04_comp_00.csv: target chi^2=1469, optimized chi^2=6.636e+05, ratio=450.800
+synthetic_04_comp_01.csv: target chi^2=2848, optimized chi^2=2.066e+05, ratio=71.551
+synthetic_04_comp_02.csv: target chi^2=8797, optimized chi^2=3.106e+04, ratio=2.531
+synthetic_04_comp_03.csv: target chi^2=2062, optimized chi^2=7.142e+05, ratio=345.322
+synthetic_04_comp_04.csv: target chi^2=8166, optimized chi^2=4.854e+05, ratio=58.440
+synthetic_05_comp_00.csv: target chi^2=3655, optimized chi^2=4.886e+05, ratio=132.690
+synthetic_05_comp_01.csv: target chi^2=5141, optimized chi^2=3.927e+05, ratio=75.392
+synthetic_05_comp_02.csv: target chi^2=1747, optimized chi^2=6.395e+04, ratio=35.610
+synthetic_05_comp_03.csv: target chi^2=4584, optimized chi^2=1.772e+05, ratio=37.668
+synthetic_05_comp_04.csv: target chi^2=1315, optimized chi^2=3.122e+05, ratio=236.336
+
+Bucket results (count, %):
+  <=10%: 0 (0.0%)
+  <=30%: 0 (0.0%)
+  <=70%: 0 (0.0%)
+  >70%: 25 (100.0%)

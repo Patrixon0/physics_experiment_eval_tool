@@ -1,0 +1,145 @@
+{
+  "function_expr": "m0*x + b0 + m1*x + b1 + m2*x + b2 + m3*x + b3",
+  "param_names": [
+    "m0",
+    "b0",
+    "m1",
+    "b1",
+    "m2",
+    "b2",
+    "m3",
+    "b3"
+  ],
+  "x_label": "x",
+  "y_label": "y",
+  "param_defaults": {},
+  "x_range": null,
+  "global_range_min": -10.0,
+  "global_range_max": 10.0,
+  "global_param_ranges": {},
+  "components": [
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "m0*x + b0",
+      "param_names": [
+        "m0",
+        "b0"
+      ],
+      "params": {
+        "m0": 0.7217268439456078,
+        "b0": -0.6884534296857143
+      },
+      "ranges": {
+        "m0": [
+          -4.278273156054392,
+          5.721726843945608
+        ],
+        "b0": [
+          -5.6884534296857145,
+          4.3115465703142855
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "m0": 0.7217268439456078,
+        "b0": -0.6884534296857143
+      },
+      "label": "line_rough",
+      "color": null
+    },
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "m1*x + b1",
+      "param_names": [
+        "m1",
+        "b1"
+      ],
+      "params": {
+        "m1": 0.6592965799498429,
+        "b1": -0.7976353087620355
+      },
+      "ranges": {
+        "m1": [
+          -4.340703420050157,
+          5.659296579949843
+        ],
+        "b1": [
+          -5.797635308762035,
+          4.202364691237965
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "m1": 0.6592965799498429,
+        "b1": -0.7976353087620355
+      },
+      "label": "line_rough",
+      "color": null
+    },
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "m2*x + b2",
+      "param_names": [
+        "m2",
+        "b2"
+      ],
+      "params": {
+        "m2": -0.32203271282291124,
+        "b2": 0.5631323967128241
+      },
+      "ranges": {
+        "m2": [
+          -5.322032712822911,
+          4.677967287177089
+        ],
+        "b2": [
+          -4.436867603287176,
+          5.563132396712824
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "m2": -0.32203271282291124,
+        "b2": 0.5631323967128241
+      },
+      "label": "line_rough",
+      "color": null
+    },
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "m3*x + b3",
+      "param_names": [
+        "m3",
+        "b3"
+      ],
+      "params": {
+        "m3": -0.4054880782260244,
+        "b3": -1.1651582312119846
+      },
+      "ranges": {
+        "m3": [
+          -5.405488078226025,
+          4.594511921773975
+        ],
+        "b3": [
+          -6.165158231211985,
+          3.8348417687880154
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "m3": -0.4054880782260244,
+        "b3": -1.1651582312119846
+      },
+      "label": "line_rough",
+      "color": null
+    }
+  ],
+  "has_error_columns": false,
+  "y_errors_in_column": "y_err",
+  "settings_slot": "rough"
+}

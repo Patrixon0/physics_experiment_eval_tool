@@ -1,0 +1,129 @@
+{
+  "function_expr": "a0*np.exp(-0.5*((x-mu0)/sigma0)**2) + m1*x + b1 + a2*np.exp(-0.5*((x-mu2)/sigma2)**2)",
+  "param_names": [
+    "a0",
+    "mu0",
+    "sigma0",
+    "m1",
+    "b1",
+    "a2",
+    "mu2",
+    "sigma2"
+  ],
+  "x_label": "x",
+  "y_label": "y",
+  "param_defaults": {},
+  "x_range": null,
+  "global_range_min": -10.0,
+  "global_range_max": 10.0,
+  "global_param_ranges": {},
+  "components": [
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "a0*np.exp(-0.5*((x-mu0)/sigma0)**2)",
+      "param_names": [
+        "a0",
+        "mu0",
+        "sigma0"
+      ],
+      "params": {
+        "a0": 2.352060766895105,
+        "mu0": 4.619125076070527,
+        "sigma0": 1.9879951453367068
+      },
+      "ranges": {
+        "a0": [
+          -2.352060766895105,
+          7.056182300685315
+        ],
+        "mu0": [
+          -4.619125076070527,
+          13.85737522821158
+        ],
+        "sigma0": [
+          -1.9879951453367068,
+          5.9639854360101205
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "a0": 2.352060766895105,
+        "mu0": 4.619125076070527,
+        "sigma0": 1.9879951453367068
+      },
+      "label": "gaussian",
+      "color": null
+    },
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "m1*x + b1",
+      "param_names": [
+        "m1",
+        "b1"
+      ],
+      "params": {
+        "m1": -0.8516108120427404,
+        "b1": 0.162752356842762
+      },
+      "ranges": {
+        "m1": [
+          -2.554832436128221,
+          0.8516108120427404
+        ],
+        "b1": [
+          -0.837247643157238,
+          1.162752356842762
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "m1": -0.8516108120427404,
+        "b1": 0.162752356842762
+      },
+      "label": "line",
+      "color": null
+    },
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "a2*np.exp(-0.5*((x-mu2)/sigma2)**2)",
+      "param_names": [
+        "a2",
+        "mu2",
+        "sigma2"
+      ],
+      "params": {
+        "a2": 0.8567053689493156,
+        "mu2": 0.8569394314988432,
+        "sigma2": 0.6472244759455599
+      },
+      "ranges": {
+        "a2": [
+          -0.8567053689493156,
+          2.570116106847947
+        ],
+        "mu2": [
+          -0.8569394314988432,
+          2.5708182944965294
+        ],
+        "sigma2": [
+          -0.6472244759455599,
+          1.9416734278366796
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "a2": 0.8567053689493156,
+        "mu2": 0.8569394314988432,
+        "sigma2": 0.6472244759455599
+      },
+      "label": "gaussian",
+      "color": null
+    }
+  ],
+  "has_error_columns": false,
+  "y_errors_in_column": "y_err",
+  "settings_slot": "fit1"
+}

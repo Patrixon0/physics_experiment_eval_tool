@@ -1,0 +1,17 @@
+{
+  "components": [
+    {
+      "kind": "line",
+      "params": {
+        "m": -0.26672708780553633,
+        "b": -0.09452299508759854
+      }
+    }
+  ],
+  "expression": "m0*x + b0",
+  "true_params": {
+    "m0": -0.26672708780553633,
+    "b0": -0.09452299508759854
+  },
+  "csv": "fitter/function_fitter_test_data/synthetic_01_comp_02.csv"
+}

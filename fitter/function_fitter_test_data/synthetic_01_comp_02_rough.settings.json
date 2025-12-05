@@ -1,0 +1,49 @@
+{
+  "function_expr": "m0*x + b0",
+  "param_names": [
+    "m0",
+    "b0"
+  ],
+  "x_label": "x",
+  "y_label": "y",
+  "param_defaults": {},
+  "x_range": null,
+  "global_range_min": -10.0,
+  "global_range_max": 10.0,
+  "global_param_ranges": {},
+  "components": [
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "m0*x + b0",
+      "param_names": [
+        "m0",
+        "b0"
+      ],
+      "params": {
+        "m0": 0.013840138014292847,
+        "b0": -0.39705803421099994
+      },
+      "ranges": {
+        "m0": [
+          -4.9861598619857075,
+          5.0138401380142925
+        ],
+        "b0": [
+          -5.397058034211,
+          4.602941965789
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "m0": 0.013840138014292847,
+        "b0": -0.39705803421099994
+      },
+      "label": "line_rough",
+      "color": null
+    }
+  ],
+  "has_error_columns": false,
+  "y_errors_in_column": "y_err",
+  "settings_slot": "rough"
+}

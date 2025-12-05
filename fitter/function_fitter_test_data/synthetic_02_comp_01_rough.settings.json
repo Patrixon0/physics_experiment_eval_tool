@@ -1,0 +1,97 @@
+{
+  "function_expr": "a0*np.sin(2*np.pi*f0*x + phi0) + c0 + m1*x + b1",
+  "param_names": [
+    "a0",
+    "f0",
+    "phi0",
+    "c0",
+    "m1",
+    "b1"
+  ],
+  "x_label": "x",
+  "y_label": "y",
+  "param_defaults": {},
+  "x_range": null,
+  "global_range_min": -10.0,
+  "global_range_max": 10.0,
+  "global_param_ranges": {},
+  "components": [
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "a0*np.sin(2*np.pi*f0*x + phi0) + c0",
+      "param_names": [
+        "a0",
+        "f0",
+        "phi0",
+        "c0"
+      ],
+      "params": {
+        "a0": 1.8913756766877494,
+        "f0": 0.8840704688003685,
+        "phi0": 1.0832568952701758,
+        "c0": -0.7593027226430635
+      },
+      "ranges": {
+        "a0": [
+          -4.353144138538702,
+          8.135895491914201
+        ],
+        "f0": [
+          -4.115929531199631,
+          5.884070468800369
+        ],
+        "phi0": [
+          -3.9167431047298242,
+          6.083256895270176
+        ],
+        "c0": [
+          -5.7593027226430635,
+          4.2406972773569365
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "a0": 1.8913756766877494,
+        "f0": 0.8840704688003685,
+        "phi0": 1.0832568952701758,
+        "c0": -0.7593027226430635
+      },
+      "label": "sine_rough",
+      "color": null
+    },
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "m1*x + b1",
+      "param_names": [
+        "m1",
+        "b1"
+      ],
+      "params": {
+        "m1": -0.34286913628252824,
+        "b1": -0.8903158574777831
+      },
+      "ranges": {
+        "m1": [
+          -5.342869136282529,
+          4.657130863717471
+        ],
+        "b1": [
+          -5.890315857477783,
+          4.109684142522217
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "m1": -0.34286913628252824,
+        "b1": -0.8903158574777831
+      },
+      "label": "line_rough",
+      "color": null
+    }
+  ],
+  "has_error_columns": false,
+  "y_errors_in_column": "y_err",
+  "settings_slot": "rough"
+}

@@ -1,0 +1,89 @@
+{
+  "function_expr": "a0*np.exp(-0.5*((x-mu0)/sigma0)**2) + m1*x + b1",
+  "param_names": [
+    "a0",
+    "mu0",
+    "sigma0",
+    "m1",
+    "b1"
+  ],
+  "x_label": "x",
+  "y_label": "y",
+  "param_defaults": {},
+  "x_range": null,
+  "global_range_min": -10.0,
+  "global_range_max": 10.0,
+  "global_param_ranges": {},
+  "components": [
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "a0*np.exp(-0.5*((x-mu0)/sigma0)**2)",
+      "param_names": [
+        "a0",
+        "mu0",
+        "sigma0"
+      ],
+      "params": {
+        "a0": 0.5601982261991132,
+        "mu0": 2.4821022857096264,
+        "sigma0": 0.588272172290223
+      },
+      "ranges": {
+        "a0": [
+          -0.5601982261991132,
+          1.6805946785973396
+        ],
+        "mu0": [
+          -2.4821022857096264,
+          7.44630685712888
+        ],
+        "sigma0": [
+          -0.588272172290223,
+          1.764816516870669
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "a0": 0.5601982261991132,
+        "mu0": 2.4821022857096264,
+        "sigma0": 0.588272172290223
+      },
+      "label": "gaussian",
+      "color": null
+    },
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "m1*x + b1",
+      "param_names": [
+        "m1",
+        "b1"
+      ],
+      "params": {
+        "m1": 0.22512022746688176,
+        "b1": -0.8329012829013487
+      },
+      "ranges": {
+        "m1": [
+          -0.7748797725331182,
+          1.2251202274668818
+        ],
+        "b1": [
+          -2.498703848704046,
+          0.8329012829013487
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "m1": 0.22512022746688176,
+        "b1": -0.8329012829013487
+      },
+      "label": "line",
+      "color": null
+    }
+  ],
+  "has_error_columns": false,
+  "y_errors_in_column": "y_err",
+  "settings_slot": "fit1"
+}

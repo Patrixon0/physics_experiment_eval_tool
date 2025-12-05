@@ -1,0 +1,97 @@
+{
+  "function_expr": "a0*np.exp(-0.5*((x-mu0)/sigma0)**2) + a1*np.exp(-0.5*((x-mu1)/sigma1)**2)",
+  "param_names": [
+    "a0",
+    "mu0",
+    "sigma0",
+    "a1",
+    "mu1",
+    "sigma1"
+  ],
+  "x_label": "x",
+  "y_label": "y",
+  "param_defaults": {},
+  "x_range": null,
+  "global_range_min": -10.0,
+  "global_range_max": 10.0,
+  "global_param_ranges": {},
+  "components": [
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "a0*np.exp(-0.5*((x-mu0)/sigma0)**2)",
+      "param_names": [
+        "a0",
+        "mu0",
+        "sigma0"
+      ],
+      "params": {
+        "a0": 2.1735612358735965,
+        "mu0": 5.65429180102556,
+        "sigma0": 1.7216527557580423
+      },
+      "ranges": {
+        "a0": [
+          -6.313151495986557,
+          10.660273967733751
+        ],
+        "mu0": [
+          -34.88030218000431,
+          46.18888578205542
+        ],
+        "sigma0": [
+          -4.49579520285924,
+          7.939100714375325
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "a0": 2.1735612358735965,
+        "mu0": 5.65429180102556,
+        "sigma0": 1.7216527557580423
+      },
+      "label": "gaussian_rough",
+      "color": null
+    },
+    {
+      "type": "pos",
+      "visible": true,
+      "expr": "a1*np.exp(-0.5*((x-mu1)/sigma1)**2)",
+      "param_names": [
+        "a1",
+        "mu1",
+        "sigma1"
+      ],
+      "params": {
+        "a1": 1.7844808942490524,
+        "mu1": 2.6869827495015572,
+        "sigma1": 1.1042107686458493
+      },
+      "ranges": {
+        "a1": [
+          -6.747745019283567,
+          10.31670680778167
+        ],
+        "mu1": [
+          -15.804182458133162,
+          21.178147957136275
+        ],
+        "sigma1": [
+          -3.8957892313541507,
+          6.104210768645849
+        ]
+      },
+      "exponents": {},
+      "mantissas": {
+        "a1": 1.7844808942490524,
+        "mu1": 2.6869827495015572,
+        "sigma1": 1.1042107686458493
+      },
+      "label": "gaussian_rough",
+      "color": null
+    }
+  ],
+  "has_error_columns": false,
+  "y_errors_in_column": "y_err",
+  "settings_slot": "rough"
+}

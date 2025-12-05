@@ -1,0 +1,47 @@
+{
+    "function_expr": "amp * np.exp(-0.5 * ((x - mu) / sigma) ** 2)",
+    "param_names": [
+        "amp",
+        "mu",
+        "sigma"
+    ],
+    "x_label": "Energie [keV]",
+    "y_label": "Intensit\u00e4t [1]",
+    "components": [],
+    "param_defaults": {
+        "amp": {
+            "mantissa": 4.52,
+            "exp": 2
+        },
+        "mu": {
+            "mantissa": 1.9602499999999998,
+            "exp": 1
+        },
+        "sigma": {
+            "mantissa": 1.1380706799228244,
+            "exp": 1
+        }
+    },
+    "x_range": {
+        "min_m": 0.0,
+        "min_exp": 0,
+        "max_m": 2.0,
+        "max_exp": 1
+    },
+    "global_range_min": -10.0,
+    "global_range_max": 10.0,
+    "global_param_ranges": {
+        "amp": [
+            0.0,
+            null
+        ],
+        "mu": [
+            5.0,
+            17.0
+        ],
+        "sigma": [
+            -0.0,
+            null
+        ]
+    }
+}

@@ -1,0 +1,108 @@
+{
+    "function_expr": "amp * np.exp(-0.5 * ((x - mu) / sigma) ** 2)",
+    "param_names": [
+        "amp",
+        "mu",
+        "sigma"
+    ],
+    "x_label": "Energie [keV]",
+    "y_label": "Intensit\u00e4t [1]",
+    "components": [
+        {
+            "type": "pos",
+            "visible": true,
+            "params": {
+                "amp": 94.05,
+                "mu": 8.02,
+                "sigma": 0.216
+            },
+            "ranges": {
+                "amp": [
+                    0.0,
+                    1.5
+                ],
+                "mu": [
+                    8.0,
+                    9.0
+                ],
+                "sigma": [
+                    0.0,
+                    1.0
+                ]
+            },
+            "exponents": {
+                "amp": 2,
+                "mu": 0,
+                "sigma": 0
+            },
+            "mantissas": {
+                "amp": 0.9405,
+                "mu": 8.02,
+                "sigma": 0.216
+            },
+            "label": "+ Component 0",
+            "color": "#c000c0"
+        },
+        {
+            "type": "pos",
+            "visible": true,
+            "params": {
+                "amp": 66.14999999999999,
+                "mu": 8.352,
+                "sigma": 0.245
+            },
+            "ranges": {
+                "amp": [
+                    0.0,
+                    1.5
+                ],
+                "mu": [
+                    8.0,
+                    10.0
+                ],
+                "sigma": [
+                    0.0,
+                    1.0
+                ]
+            },
+            "exponents": {
+                "amp": 2,
+                "mu": 0,
+                "sigma": 0
+            },
+            "mantissas": {
+                "amp": 0.6615,
+                "mu": 8.352,
+                "sigma": 0.245
+            },
+            "label": "+ Component 1",
+            "color": "#c000c0"
+        }
+    ],
+    "param_defaults": {
+        "amp": {
+            "mantissa": 4.52,
+            "exp": 2
+        },
+        "mu": {
+            "mantissa": 1.9602499999999998,
+            "exp": 1
+        },
+        "sigma": {
+            "mantissa": 1.1380706799228244,
+            "exp": 1
+        }
+    },
+    "x_range": {
+        "min_m": -2.0383500000000003,
+        "min_exp": 0,
+        "max_m": 4.124335,
+        "max_exp": 1
+    },
+    "y_range": {
+        "min_m": -2.2600000000000002,
+        "min_exp": 1,
+        "max_m": 4.746,
+        "max_exp": 2
+    }
+}
